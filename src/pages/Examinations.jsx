@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { EmptyState } from "../components/ui.jsx";
 import {
@@ -17,7 +18,10 @@ export default function Examinations() {
   const [msg, setMsg] = useState(null);
   const [copiedId, setCopiedId] = useState("");
   const [openActionsId, setOpenActionsId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState(null);
   const actionsRef = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const copyId = async (examId) => {
     try {
       await navigator.clipboard.writeText(examId);
@@ -53,7 +57,10 @@ export default function Examinations() {
     if (openActionsId === null) return undefined;
 
     const handlePointerDown = (event) => {
-      if (actionsRef.current && !actionsRef.current.contains(event.target)) {
+      if (
+        !actionsRef.current?.contains(event.target) &&
+        !menuRef.current?.contains(event.target)
+      ) {
         setOpenActionsId(null);
       }
     };
@@ -66,6 +73,38 @@ export default function Examinations() {
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openActionsId]);
+
+  useEffect(() => {
+    if (openActionsId === null) {
+      setMenuPosition(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuWidth = 160;
+      const menuHeight = 130;
+      setMenuPosition({
+        left: Math.max(
+          8,
+          Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
+        ),
+        top:
+          rect.bottom + menuHeight <= window.innerHeight
+            ? rect.bottom + 4
+            : Math.max(8, rect.top - menuHeight - 4),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [openActionsId]);
 
@@ -182,24 +221,42 @@ export default function Examinations() {
                         <div
                           className="exam-actions"
                           ref={openActionsId === exam.id ? actionsRef : null}
+                          style={{
+                            position: "relative",
+                            zIndex: openActionsId === exam.id ? 10 : 1,
+                          }}
                         >
                           <button
                             type="button"
                             className="icon-btn exam-actions-trigger"
+                            ref={openActionsId === exam.id ? triggerRef : null}
                             aria-label={`Actions for ${exam.title}`}
                             title="Actions"
                             aria-haspopup="true"
                             aria-expanded={openActionsId === exam.id}
-                            onClick={() =>
-                              setOpenActionsId((current) =>
-                                current === exam.id ? null : exam.id,
-                              )
-                            }
+                            onClick={(event) => {
+                              if (openActionsId === exam.id) {
+                                setOpenActionsId(null);
+                                return;
+                              }
+                              triggerRef.current = event.currentTarget;
+                              setOpenActionsId(exam.id);
+                            }}
                           >
                             <IconDots width={18} height={18} />
                           </button>
-                          {openActionsId === exam.id && (
-                            <div className="exam-actions-menu">
+                          {openActionsId === exam.id &&
+                            menuPosition &&
+                            createPortal(
+                              <div
+                                ref={menuRef}
+                                className="exam-actions-menu"
+                                style={{
+                                  position: "fixed",
+                                  ...menuPosition,
+                                  zIndex: 10000,
+                                }}
+                              >
                               <button
                                 type="button"
                                 className="exam-action-item"
@@ -228,8 +285,9 @@ export default function Examinations() {
                                 <IconTrash width={15} height={15} />
                                 Delete
                               </button>
-                            </div>
-                          )}
+                              </div>,
+                              document.body,
+                            )}
                         </div>
                       </div>
                     </td>
