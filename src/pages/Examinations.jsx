@@ -119,7 +119,7 @@ export default function Examinations() {
 
       {msg && <div className={`alert ${msg.type}`}>{msg.text}</div>}
 
-      <div className="card">
+      <div className="card" style={{ minHeight: 320 }}>
         {filtered.length === 0 ? (
           <EmptyState
             icon={<IconExam width={42} height={42} />}
